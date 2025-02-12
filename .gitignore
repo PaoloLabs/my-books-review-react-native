@@ -51,3 +51,4 @@ ios/GoogleService-Info.plist
 *.sublime-project
 *.sublime-workspace
 Thumbs.db
+src/config/firebase.js
