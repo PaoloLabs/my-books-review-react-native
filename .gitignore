@@ -1,53 +1,46 @@
-# 🔥 Firebase (my-book-review-firebase)
-my-books-review-firebase/firebase-debug.log
-my-books-review-firebase/firebase-debug.json
-my-books-review-firebase/.firebaserc
-my-books-review-firebase/firebase.json
-my-books-review-firebase/.firebase/
-my-books-review-firebase/functions/node_modules/
-my-books-review-firebase/functions/package-lock.json
-my-books-review-firebase/functions/.env
-my-books-review-firebase/functions/.env.*
+# ⚡ Node.js dependencies
+node_modules/
+package-lock.json
+yarn.lock
 
-# 📱 React Native (my-books-review-react-n)
-my-books-review-react-n/node_modules/
-my-books-review-react-n/package-lock.json
-my-books-review-react-n/yarn.lock
-my-books-review-react-n/.expo/
-my-books-review-react-n/.expo-shared/
-my-books-review-react-n/dist/
-my-books-review-react-n/src/config/firebase.js
+# 🚀 Expo (si usas Expo)
+.expo/
+.expo-shared/
+dist/
 
-# 🚀 Logs & Debugging
+# 🔧 Logs & Debugging
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 metro.config.js
 babel.config.js
+index.js
 
 # 🍏 iOS
-my-books-review-react-n/ios/
-!my-books-review-react-n/ios/.gitkeep
-my-books-review-react-n/ios/Pods/
-my-books-review-react-n/ios/Podfile.lock
-my-books-review-react-n/ios/DerivedData/
-my-books-review-react-n/ios/*.xcworkspace
-my-books-review-react-n/ios/*.xcodeproj
+ios/
+!ios/.gitkeep
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata
+Pods/
+Podfile.lock
+DerivedData/
+xcuserdata/
 
 # 🤖 Android
-my-books-review-react-n/android/
-!my-books-review-react-n/android/.gitkeep
-my-books-review-react-n/android/.gradle/
-my-books-review-react-n/android/*.apk
-my-books-review-react-n/android/*.keystore
-my-books-review-react-n/android/local.properties
+android/
+!android/.gitkeep
+.gradle/
+*.apk
+*.keystore
+local.properties
 
-# 🔐 Firebase Configuration (Avoid Exposing API Keys)
-my-books-review-react-n/.env
-my-books-review-react-n/.env.*
-my-books-review-react-n/google-services.json
-my-books-review-react-n/android/app/google-services.json
-my-books-review-react-n/ios/GoogleService-Info.plist
+# 🔥 Firebase Configuration (Protege API Keys)
+.env
+.env.*
+google-services.json
+android/app/google-services.json
+ios/GoogleService-Info.plist
 
 # ⚡ Cache & System Files
 .DS_Store
