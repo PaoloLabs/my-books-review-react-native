@@ -1,13 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, Image, ScrollView, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-// Se importa Firestore (asegúrate de tener la config de Firebase)
-import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { firestore } from '../../../config/firebase'; 
+import {
+  View,
+  Text,
+  Button,
+  Image,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert
+} from 'react-native';
+
+// Se importa Firestore V9 en modo modular
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  serverTimestamp,
+  deleteDoc,
+  doc,
+  updateDoc,
+  setDoc,
+  getDoc,
+  arrayUnion,
+  arrayRemove
+} from 'firebase/firestore';
+
+// Se importa la referencia a Firestore y Auth desde tu config (con emuladores activos)
+import { firestore, auth } from '../../../config/firebase';
+
 import { fetchBookDetails } from '../../../services/api';
 import { LoadingOverlay } from '../../../components/LoadingOverlay';
 
 export default function BookDetailScreen({ route, navigation }) {
-  // Se recibe el ID del libro desde la navegación
+  // Recibimos el ID del libro desde la ruta
   const { bookId } = route.params;
 
   // Estados para el detalle del libro
@@ -15,11 +44,14 @@ export default function BookDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
 
   // Estados para reseñas
-  const [reviews, setReviews] = useState([]);           // Lista de reseñas en Firestore
-  const [reviewText, setReviewText] = useState('');     // Texto de la nueva reseña
-  const [rating, setRating] = useState(0);              // Calificación por estrellas
+  const [reviews, setReviews] = useState([]);       // Lista de reseñas en Firestore
+  const [reviewText, setReviewText] = useState(''); // Texto de la nueva reseña
+  const [rating, setRating] = useState(0);          // Calificación por estrellas
 
-  // Se obtiene el detalle del libro de la API (Udacity Books)
+  // Estado para saber si el libro ya está marcado como leído
+  const [isRead, setIsRead] = useState(false);
+
+  // Cargar datos del libro desde la API
   useEffect(() => {
     const getBookDetails = async () => {
       const bookData = await fetchBookDetails(bookId);
@@ -29,47 +61,81 @@ export default function BookDetailScreen({ route, navigation }) {
     getBookDetails();
   }, [bookId]);
 
-  // Se suscribe en tiempo real a las reseñas de este libro
+  // Suscribirse en tiempo real a las reseñas de este libro
   useEffect(() => {
-    // Referencia a la colección 'reviews'
     const reviewsRef = collection(firestore, 'reviews');
-    // Consulta filtrando por el campo bookId
     const q = query(
       reviewsRef,
       where('bookId', '==', bookId),
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, snapshot => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedReviews = [];
-      snapshot.forEach(docSnap => {
+      snapshot.forEach((docSnap) => {
         fetchedReviews.push({ id: docSnap.id, ...docSnap.data() });
       });
       setReviews(fetchedReviews);
     });
 
-    // Al desmontar el componente, se limpia la suscripción
     return () => unsubscribe();
   }, [bookId]);
+
+  // Al montar o cambiar el bookId, verificar si el libro ya está en el array readBooks del usuario
+  useEffect(() => {
+    const checkIfRead = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+
+        const userDocRef = doc(firestore, 'users', currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (!userDocSnap.exists()) {
+          // Si no existe, lo creamos vacío
+          await setDoc(userDocRef, { readBooks: [] });
+          setIsRead(false);
+        } else {
+          const data = userDocSnap.data();
+          if (data.readBooks?.includes(bookId)) {
+            setIsRead(true);
+          } else {
+            setIsRead(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error revisando si el libro está marcado como leído:', error);
+      }
+    };
+
+    checkIfRead();
+  }, [auth.currentUser, bookId]);
 
   // Envía una nueva reseña a Firestore
   const submitReview = async () => {
     if (!reviewText.trim()) {
-      return; // Asegurarse de que el texto no esté vacío
+      Alert.alert('Error', 'La reseña no puede estar vacía.');
+      return;
     }
     if (rating < 1) {
-      return; // Asegurarse de que haya una calificación
+      Alert.alert('Error', 'La calificación debe ser al menos de 1 estrella.');
+      return;
+    }
+    // Verificamos si hay un usuario autenticado
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert('Error', 'No hay usuario autenticado.');
+      return;
     }
     try {
-      // Agregar nuevo documento a la colección 'reviews'
       await addDoc(collection(firestore, 'reviews'), {
-        bookId,          // Para saber a qué libro pertenece la reseña
+        bookId,
         text: reviewText,
         rating,
         createdAt: serverTimestamp(),
-        // userId o userEmail si lo deseas, si manejas usuarios con Firebase Auth
+        userId: currentUser.uid
       });
-      // Resetea los campos del formulario
+      // Limpiar campos
       setReviewText('');
       setRating(0);
     } catch (error) {
@@ -86,7 +152,7 @@ export default function BookDetailScreen({ route, navigation }) {
     }
   };
 
-  // Actualiza una reseña (por ejemplo, cambia el texto a “Editado”)
+  // Actualiza una reseña (ejemplo simple)
   const editReview = async (reviewId) => {
     try {
       const docRef = doc(firestore, 'reviews', reviewId);
@@ -96,22 +162,55 @@ export default function BookDetailScreen({ route, navigation }) {
     }
   };
 
-  // Componente que dibuja las estrellas según la calificación
-  // y maneja la selección de calificación
+  // Función para marcar o desmarcar el libro como leído
+  const toggleReadStatus = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        Alert.alert('Error', 'No hay usuario autenticado.');
+        return;
+      }
+
+      const userDocRef = doc(firestore, 'users', currentUser.uid);
+
+      // Primero asegurarnos de que el doc existe
+      const userDocSnap = await getDoc(userDocRef);
+      if (!userDocSnap.exists()) {
+        // Si no existe, crearlo con array vacío
+        await setDoc(userDocRef, { readBooks: [] });
+      }
+
+      // Si ya está leído, lo quitamos; si no, lo agregamos
+      if (isRead) {
+        await updateDoc(userDocRef, {
+          readBooks: arrayRemove(bookId)
+        });
+        setIsRead(false);
+        Alert.alert('¡Removido!', 'Se quitó el libro de tus leídos');
+      } else {
+        await updateDoc(userDocRef, {
+          readBooks: arrayUnion(bookId)
+        });
+        setIsRead(true);
+        Alert.alert('¡Libro guardado!', 'Se marcó este libro como leído en tu cuenta.');
+      }
+
+    } catch (error) {
+      console.error('Error al cambiar el estado de leído:', error);
+    }
+  };
+
+  // Componente: rating con estrellas ★
   const StarRating = ({ currentRating, onSelectRating }) => {
-    // Se define cuántas estrellas en total
     const totalStars = 5;
-    
     return (
       <View style={{ flexDirection: 'row', marginVertical: 5 }}>
         {Array.from({ length: totalStars }, (_, index) => {
           const starValue = index + 1;
-          // Si la calificación es >= starValue, la estrella se “pinta”
           const isFilled = currentRating >= starValue;
-
           return (
-            <TouchableOpacity 
-              key={index} 
+            <TouchableOpacity
+              key={index}
               onPress={() => onSelectRating(starValue)}
               style={{ marginRight: 5 }}
             >
@@ -132,17 +231,24 @@ export default function BookDetailScreen({ route, navigation }) {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={{ flex: 1, padding: 15 }}>
+        {/* Imagen del libro */}
         {book?.imageLinks?.thumbnail && (
-          <Image 
-            source={{ uri: book.imageLinks.thumbnail }} 
-            style={{ width: 150, height: 220, alignSelf: 'center', marginBottom: 15 }} 
+          <Image
+            source={{ uri: book.imageLinks.thumbnail }}
+            style={{ width: 150, height: 220, alignSelf: 'center', marginBottom: 15 }}
           />
         )}
-        <Text style={styles.bookTitle}>{book?.title}</Text>
-        <Text style={styles.bookAuthor}>{book?.authors?.join(', ')}</Text>
-        <Text style={styles.bookDescription}>{book?.description || 'No hay descripción disponible.'}</Text>
 
-        {/* Sección para crear una nueva reseña */}
+        {/* Título, autor, descripción */}
+        <Text style={styles.bookTitle}>{book?.title}</Text>
+        <Text style={styles.bookAuthor}>
+          {book?.authors?.join(', ') || 'Autor desconocido'}
+        </Text>
+        <Text style={styles.bookDescription}>
+          {book?.description || 'No hay descripción disponible.'}
+        </Text>
+
+        {/* Formulario para crear nueva reseña */}
         <View style={styles.reviewForm}>
           <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Añadir Reseña:</Text>
           <StarRating currentRating={rating} onSelectRating={setRating} />
@@ -153,28 +259,28 @@ export default function BookDetailScreen({ route, navigation }) {
             onChangeText={setReviewText}
             multiline
           />
-          <Button 
+          <Button
             title="Enviar Reseña"
             onPress={submitReview}
           />
         </View>
 
-        {/* Sección que lista las reseñas obtenidas de Firestore */}
+        {/* Listado de reseñas desde Firestore */}
         <View style={{ marginTop: 20 }}>
           <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>Reseñas:</Text>
-          {reviews.map(item => (
+          {reviews.map((item) => (
             <View key={item.id} style={styles.reviewItem}>
               <Text style={{ fontWeight: 'bold' }}>
                 Calificación: {item.rating} / 5
               </Text>
               <Text>{item.text}</Text>
               <View style={{ flexDirection: 'row', marginTop: 10 }}>
-                <Button 
+                <Button
                   title="Editar"
                   onPress={() => editReview(item.id)}
                 />
                 <View style={{ width: 10 }} />
-                <Button 
+                <Button
                   title="Borrar"
                   color="red"
                   onPress={() => deleteReview(item.id)}
@@ -184,7 +290,18 @@ export default function BookDetailScreen({ route, navigation }) {
           ))}
         </View>
       </ScrollView>
-      <Button title="Volver a la Biblioteca" onPress={() => navigation.goBack()} />
+
+      {/* Botón para marcar/desmarcar como leído */}
+      <Button
+        title={isRead ? "Quitar de mis leídos" : "Marcar como leído"}
+        onPress={toggleReadStatus}
+      />
+
+      {/* Botón para volver a la biblioteca */}
+      <Button
+        title="Volver a la Biblioteca"
+        onPress={() => navigation.goBack()}
+      />
     </View>
   );
 }

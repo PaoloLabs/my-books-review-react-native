@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,31 @@ import {
   TextInput,
   Image,
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert,
+  Dimensions,
+  ScrollView
 } from 'react-native';
-import { getAuth } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-
-// Importa 'storage' ya conectado al emulador
+import { getAuth, signOut } from 'firebase/auth';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from 'firebase/firestore';
 import { storage, firestore } from '../../config/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-
 import * as ImagePicker from 'expo-image-picker';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { PieChart } from 'react-native-chart-kit';
+
+// Importamos useFocusEffect
+import { useFocusEffect } from '@react-navigation/native';
+
+const screenWidth = Dimensions.get('window').width;
 
 export default function ProfileScreen({ navigation }) {
   const auth = getAuth();
@@ -25,30 +39,63 @@ export default function ProfileScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [photoURL, setPhotoURL] = useState('');
-  const [booksRead, setBooksRead] = useState(0);
+  const [readCount, setReadCount] = useState(0);
+  const [reviewsCount, setReviewsCount] = useState(0);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const docRef = doc(firestore, 'users', currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setName(data.name || '');
-          setEmail(data.email || currentUser.email);
-          setPhotoURL(data.photoURL || '');
-          setBooksRead(data.booksRead || 0);
-        }
-      } catch (error) {
-        console.error('Error al cargar el perfil:', error);
+  // Función para cargar la información del perfil
+  const fetchUserProfile = async () => {
+    if (!currentUser) return;
+    try {
+      const docRef = doc(firestore, 'users', currentUser.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setName(data.name || '');
+        setEmail(data.email || currentUser.email);
+        setPhotoURL(data.photoURL || '');
       }
-    };
-    if (currentUser) {
-      fetchUserProfile();
+    } catch (error) {
+      console.error('Error al cargar el perfil:', error);
     }
-  }, [currentUser]);
+  };
 
+  // Función para cargar estadísticas
+  const loadStats = async () => {
+    if (!currentUser) return;
+    try {
+      // 1. Libros leídos
+      const userDocRef = doc(firestore, 'users', currentUser.uid);
+      const userSnapshot = await getDoc(userDocRef);
+
+      if (userSnapshot.exists()) {
+        const data = userSnapshot.data();
+        const readBooks = data.readBooks || [];
+        setReadCount(readBooks.length);
+      } else {
+        setReadCount(0);
+      }
+
+      // 2. Reseñas (colección 'reviews' filtrando por userId)
+      const reviewsRef = collection(firestore, 'reviews');
+      const q = query(reviewsRef, where('userId', '==', currentUser.uid));
+      const reviewsSnap = await getDocs(q);
+      setReviewsCount(reviewsSnap.size);
+    } catch (err) {
+      console.error('Error al cargar estadísticas:', err);
+    }
+  };
+
+  // useFocusEffect para recargar datos cada vez que esta pantalla obtiene el foco
+  useFocusEffect(
+    useCallback(() => {
+      // Cargamos info de perfil y estadísticas
+      fetchUserProfile();
+      loadStats();
+    }, [])
+  );
+
+  // Subir imagen
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -70,9 +117,7 @@ export default function ProfileScreen({ navigation }) {
   const uploadImage = async (uri) => {
     try {
       setUploading(true);
-      // Usar la instancia 'storage' conectada al emulador
       const storageRef = ref(storage, `profilePics/${currentUser.uid}.jpg`);
-
       const response = await fetch(uri);
       const blob = await response.blob();
 
@@ -86,12 +131,11 @@ export default function ProfileScreen({ navigation }) {
         },
         async () => {
           try {
-            // La URL en el emulador NO será un link público real
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('URL del emulador:', downloadURL);
+            console.log('URL del emulador/real:', downloadURL);
             setPhotoURL(downloadURL);
           } catch (err) {
-            console.log('Error obteniendo URL (Emulador):', err);
+            console.log('Error obteniendo URL:', err);
           }
           setUploading(false);
         }
@@ -111,27 +155,52 @@ export default function ProfileScreen({ navigation }) {
         {
           name,
           email,
-          photoURL,
-          booksRead
+          photoURL
         },
         { merge: true }
       );
       setUploading(false);
-      alert('Perfil actualizado.');
+      Alert.alert('Perfil actualizado', 'Los cambios se han guardado.');
     } catch (error) {
       console.error('Error al guardar perfil:', error);
       setUploading(false);
     }
   };
 
-  const incrementBooksRead = () => {
-    setBooksRead((prev) => prev + 1);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigation.replace('Auth');
+    } catch (error) {
+      Alert.alert('Error al cerrar sesión', error.message);
+    }
   };
 
+  const pieData = [
+    {
+      name: 'Leídos',
+      population: readCount,
+      color: '#1e90ff',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 15
+    },
+    {
+      name: 'Reseñas',
+      population: reviewsCount,
+      color: '#ff7f50',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 15
+    }
+  ];
+
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
+    >
       <LoadingOverlay visible={uploading} />
 
+      {/* FOTO DE PERFIL */}
       <TouchableOpacity onPress={pickImage}>
         {photoURL ? (
           <Image source={{ uri: photoURL }} style={styles.profilePic} />
@@ -142,9 +211,11 @@ export default function ProfileScreen({ navigation }) {
         )}
       </TouchableOpacity>
 
+      {/* Nombre */}
       <Text style={styles.label}>Nombre:</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} />
 
+      {/* Email (no editable) */}
       <Text style={styles.label}>Email:</Text>
       <TextInput
         style={[styles.input, { backgroundColor: '#f0f0f0' }]}
@@ -153,46 +224,82 @@ export default function ProfileScreen({ navigation }) {
         editable={false}
       />
 
-      <Text style={styles.label}>Libros Leídos: {booksRead}</Text>
-      <Button title="Sumar 1 libro leído" onPress={incrementBooksRead} />
+      {/* Gráfico circular: Libros leídos vs. Reseñas */}
+      <View style={{ marginTop: 20 }}>
+        <Text style={styles.label}>Estadísticas</Text>
 
-      <Button
-        title={uploading ? 'Guardando...' : 'Guardar Perfil'}
-        onPress={saveProfile}
-        disabled={uploading}
-      />
-      <Button title="Volver" onPress={() => navigation.goBack()} color="#888" />
-    </View>
+        <PieChart
+          data={pieData}
+          width={screenWidth * 0.8}
+          height={220}
+          chartConfig={{
+            backgroundColor: '#fff',
+            backgroundGradientFrom: '#f9f9f9',
+            backgroundGradientTo: '#fff',
+            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+          }}
+          accessor="population"
+          backgroundColor="transparent"
+          paddingLeft="15"
+          absolute
+        />
+      </View>
+
+      {/* Botón para guardar perfil */}
+      <View style={{ marginTop: 20, width: '80%' }}>
+        <Button
+          title={uploading ? 'Guardando...' : 'Guardar Perfil'}
+          onPress={saveProfile}
+          disabled={uploading}
+        />
+      </View>
+
+      {/* Botón para cerrar sesión */}
+      <View style={{ marginTop: 10, width: '80%' }}>
+        <Button title="Cerrar Sesión" onPress={handleLogout} color="#d9534f" />
+      </View>
+
+      {/* Botón para volver a la pantalla anterior */}
+      <View style={{ marginTop: 10, width: '80%' }}>
+        <Button
+          title="Volver"
+          onPress={() => navigation.goBack()}
+          color="#888"
+        />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20
+    padding: 20,
   },
   profilePic: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    alignSelf: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
   profilePicPlaceholder: {
     backgroundColor: '#eee',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   label: {
     fontWeight: 'bold',
-    marginTop: 10
+    marginBottom: 5,
+    textAlign: 'center',
   },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
-    marginTop: 5,
+    marginBottom: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 5
-  }
+    borderRadius: 5,
+    width: '80%',
+    textAlign: 'center',
+  },
 });
