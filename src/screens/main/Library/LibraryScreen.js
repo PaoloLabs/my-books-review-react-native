@@ -21,14 +21,10 @@ import {
   setDoc,
   updateDoc,
   arrayUnion,
-  getFirestore,
-  collection,
-  query,
-  where,
-  onSnapshot,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { firestore, auth } from '../../../config/firebase';
+import { firestore, auth } from '../../../config/firebase'; // Ajusta la ruta a tu config
+
+// Tu API para cargar libros (paginación)
 import { fetchBooksPaginated } from '../../../services/api';
 
 export default function LibraryScreen({ navigation }) {
@@ -40,14 +36,13 @@ export default function LibraryScreen({ navigation }) {
   // Guardamos los IDs de libros leídos en un array
   const [readBooks, setReadBooks] = useState([]);
 
-  // 1. Función para cargar más libros (paginación)
+  // 1. Función para cargar libros de la API
   const loadMoreBooks = async () => {
     setLoading(true);
     try {
       const newBooks = await fetchBooksPaginated();
       setBooks((prevBooks) => {
         const updatedBooks = [...prevBooks, ...newBooks];
-        // Actualizamos también la lista filtrada
         setFilteredBooks(updatedBooks);
         return updatedBooks;
       });
@@ -65,11 +60,14 @@ export default function LibraryScreen({ navigation }) {
 
       const userDocRef = doc(firestore, 'users', currentUser.uid);
       const userSnap = await getDoc(userDocRef);
+
       if (!userSnap.exists()) {
-        // Si no existe el doc del usuario, lo creamos
+        // Si es un usuario totalmente nuevo, creamos el doc con readBooks vacío
         await setDoc(userDocRef, { readBooks: [] });
+        console.log('Nuevo usuario; documento creado con readBooks vacío.');
         setReadBooks([]);
       } else {
+        // Si existe, cargamos su array real
         const userData = userSnap.data();
         setReadBooks(userData.readBooks || []);
       }
@@ -78,20 +76,14 @@ export default function LibraryScreen({ navigation }) {
     }
   };
 
-  // 3. Lógica para refrescar la pantalla cada vez que obtiene el foco
+  // 3. useFocusEffect: refresca libros leídos cada vez que la pantalla recupere el foco
   useFocusEffect(
     useCallback(() => {
-      // Al recuperar el foco, recargamos libros leídos
-      // (O si deseas, recargar todo con loadMoreBooks; depende de tus necesidades)
       loadUserReadBooks();
-
-      // OPCIONAL: si deseas recargar completamente la lista de libros,
-      // podrías llamar a loadMoreBooks(); sin embargo, eso duplicaría la lista
-      // si no la reseteas primero. Depende de tu flujo.
     }, [])
   );
 
-  // 4. Al montar la pantalla por primera vez, carga libros de la API
+  // 4. Al montar la pantalla, carga la lista de libros de la API
   useEffect(() => {
     loadMoreBooks();
   }, []);
@@ -102,8 +94,8 @@ export default function LibraryScreen({ navigation }) {
       setFilteredBooks(books);
     } else {
       const lowerQuery = searchQuery.toLowerCase();
-      const filtered = books.filter((b) =>
-        b.title?.toLowerCase().includes(lowerQuery)
+      const filtered = books.filter((book) =>
+        book.title?.toLowerCase().includes(lowerQuery)
       );
       setFilteredBooks(filtered);
     }
@@ -115,13 +107,13 @@ export default function LibraryScreen({ navigation }) {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
+      // Actualizamos el documento del usuario con arrayUnion
       const userDocRef = doc(firestore, 'users', currentUser.uid);
-      // Actualiza el array readBooks con arrayUnion
       await updateDoc(userDocRef, {
         readBooks: arrayUnion(bookId),
       });
 
-      // Refrescar el estado local
+      // Actualizamos el estado local
       setReadBooks((prev) => [...prev, bookId]);
     } catch (error) {
       console.error('Error al marcar como leído:', error);
@@ -133,7 +125,7 @@ export default function LibraryScreen({ navigation }) {
     // Ver si ya está en readBooks
     const isRead = readBooks.includes(item.id);
 
-    // Truncar descripción
+    // Truncar descripción (si existe)
     const maxDescLength = 100;
     const truncatedDescription = item.description
       ? item.description.length > maxDescLength
@@ -141,7 +133,7 @@ export default function LibraryScreen({ navigation }) {
         : item.description
       : 'Sin descripción';
 
-    // Calificación si la API lo provee
+    // Calificación (si la API lo provee)
     const ratingText = item.averageRating
       ? `Calificación: ${item.averageRating.toFixed(1)}`
       : 'Calificación: N/A';
@@ -149,7 +141,7 @@ export default function LibraryScreen({ navigation }) {
     return (
       <View style={styles.bookContainer}>
         {/* Imagen */}
-        {item?.imageLinks?.thumbnail ? (
+        {item.imageLinks?.thumbnail ? (
           <Image
             source={{ uri: item.imageLinks.thumbnail }}
             style={styles.bookImage}
@@ -166,7 +158,7 @@ export default function LibraryScreen({ navigation }) {
           <Text style={styles.description}>{truncatedDescription}</Text>
           <Text style={styles.rating}>{ratingText}</Text>
 
-          {/* Botón para marcar como leído */}
+          {/* Botón “Marcar como leído” */}
           <TouchableOpacity
             style={[styles.readButton, isRead && { backgroundColor: '#999' }]}
             onPress={() => markAsRead(item.id)}
