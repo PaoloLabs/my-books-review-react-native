@@ -9,9 +9,9 @@ import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 export default function RegisterScreen({ navigation }) {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: ''
+    email: 'pepe.test@acme.com',
+    password: 'Test2025!',
+    confirmPassword: 'Test2025!'
   });
 
   const [errors, setErrors] = useState({});

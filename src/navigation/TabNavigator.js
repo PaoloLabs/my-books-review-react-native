@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import LibraryScreen from '../screens/main/LibraryScreen';
 import MyBooksScreen from '../screens/main/MyBooksScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import LibraryStack from './LibraryStack';
 import { Icon } from '@rneui/themed';
 
 const Tab = createBottomTabNavigator();
@@ -28,8 +28,8 @@ export default function TabNavigator() {
     >
       <Tab.Screen 
         name="Library" 
-        component={LibraryScreen} 
-        options={{ title: 'Librería' }}
+        component={LibraryStack} 
+        options={{ headerShown: false }}
       />
       <Tab.Screen 
         name="MyBooks" 
