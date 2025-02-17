@@ -37,7 +37,7 @@ export default function MyBooksScreen() {
         return;
       }
 
-      // 1. Leer readBooks del documento del usuario
+      // Leer readBooks del documento del usuario
       const userDocRef = doc(firestore, 'users', currentUser.uid);
       const userSnapshot = await getDoc(userDocRef);
 
@@ -59,8 +59,8 @@ export default function MyBooksScreen() {
         return;
       }
 
-      // 2. Consultar las reseñas del usuario para esos libros
-      //    where('bookId','in', readBooks) y where('userId','==', currentUser.uid)
+      // Consultar las reseñas del usuario para esos libros
+      // where('bookId','in', readBooks) y where('userId','==', currentUser.uid)
       const reviewsRef = collection(firestore, 'reviews');
       const q = query(
         reviewsRef,
@@ -76,7 +76,7 @@ export default function MyBooksScreen() {
           userReviews.push({ id: docSnap.id, ...docSnap.data() });
         });
 
-        // 3. Para cada libro en readBooks, obtenemos detalles de la API
+        // Para cada libro en readBooks, obtenemos detalles de la API
         const booksData = [];
         for (let bookId of readBooks) {
           const bookDetails = await fetchBookDetails(bookId);
@@ -112,12 +112,6 @@ export default function MyBooksScreen() {
     }, [])
   );
 
-  // También puedes querer cargar una primera vez al montar,
-  // pero con useFocusEffect probablemente baste:
-  // useEffect(() => {
-  //   loadMyBooks();
-  // }, []);
-
   const renderBookItem = ({ item }) => {
     return (
       <View style={styles.bookContainer}>
@@ -134,7 +128,7 @@ export default function MyBooksScreen() {
           </View>
         )}
 
-        <View style={{ flex: 1, marginLeft: 10 }}>
+        <View style={styles.bookInfo}>
           <Text style={styles.title}>{item.title}</Text>
           <Text style={styles.authors}>{item.authors.join(', ')}</Text>
 
@@ -202,22 +196,38 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 6,
   },
+  bookInfo: {
+    flex: 1,
+  },
+  bookCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+  },
   bookImage: {
     width: 80,
     height: 120,
-    backgroundColor: '#ccc',
+    borderRadius: 5,
+    marginRight: 10,
   },
   bookPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
   },
   authors: {
+    fontSize: 14,
     fontStyle: 'italic',
-    marginVertical: 4,
+    color: '#666',
   },
   subtitle: {
     fontWeight: '600',

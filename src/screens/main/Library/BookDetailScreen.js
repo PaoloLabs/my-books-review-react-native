@@ -11,7 +11,6 @@ import {
   Alert
 } from 'react-native';
 
-// Se importa Firestore V9 en modo modular
 import {
   collection,
   addDoc,
@@ -29,14 +28,13 @@ import {
   arrayRemove
 } from 'firebase/firestore';
 
-// Se importa la referencia a Firestore y Auth desde tu config (con emuladores activos)
 import { firestore, auth } from '../../../config/firebase';
 
 import { fetchBookDetails } from '../../../services/api';
 import { LoadingOverlay } from '../../../components/LoadingOverlay';
+import { commonStyles } from '../../../styles/CommonStyles';
 
 export default function BookDetailScreen({ route, navigation }) {
-  // Recibimos el ID del libro desde la ruta
   const { bookId } = route.params;
 
   // Estados para el detalle del libro
@@ -240,20 +238,20 @@ export default function BookDetailScreen({ route, navigation }) {
         )}
 
         {/* Título, autor, descripción */}
-        <Text style={styles.bookTitle}>{book?.title}</Text>
-        <Text style={styles.bookAuthor}>
+        <Text style={commonStyles.detailBookTitle}>{book?.title}</Text>
+        <Text style={commonStyles.detailBookAuthor}>
           {book?.authors?.join(', ') || 'Autor desconocido'}
         </Text>
-        <Text style={styles.bookDescription}>
+        <Text style={commonStyles.detailBookDescription}>
           {book?.description || 'No hay descripción disponible.'}
         </Text>
 
         {/* Formulario para crear nueva reseña */}
-        <View style={styles.reviewForm}>
+        <View style={commonStyles.detailReviewForm}>
           <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Añadir Reseña:</Text>
           <StarRating currentRating={rating} onSelectRating={setRating} />
           <TextInput
-            style={styles.input}
+            style={commonStyles.detailInput}
             placeholder="Escribe tu reseña..."
             value={reviewText}
             onChangeText={setReviewText}
@@ -269,7 +267,7 @@ export default function BookDetailScreen({ route, navigation }) {
         <View style={{ marginTop: 20 }}>
           <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>Reseñas:</Text>
           {reviews.map((item) => (
-            <View key={item.id} style={styles.reviewItem}>
+            <View key={item.id} style={commonStyles.detailReviewItem}>
               <Text style={{ fontWeight: 'bold' }}>
                 Calificación: {item.rating} / 5
               </Text>
@@ -292,56 +290,11 @@ export default function BookDetailScreen({ route, navigation }) {
       </ScrollView>
 
       {/* Botón para marcar/desmarcar como leído */}
-      <Button
-        title={isRead ? "Quitar de mis leídos" : "Marcar como leído"}
-        onPress={toggleReadStatus}
-      />
-
-      {/* Botón para volver a la biblioteca */}
-      <Button
-        title="Volver a la Biblioteca"
-        onPress={() => navigation.goBack()}
-      />
+      <TouchableOpacity style={[commonStyles.detailButton, isRead ? commonStyles.detailReadButtonActive : commonStyles.detailReadButton]}
+        onPress={toggleReadStatus}>
+        <Text style={commonStyles.detailButtonText}>{isRead ? "Leído" : "Marcar como leído"}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  bookTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10
-  },
-  bookAuthor: {
-    fontSize: 18,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginBottom: 10
-  },
-  bookDescription: {
-    fontSize: 16,
-    textAlign: 'justify',
-    marginBottom: 20
-  },
-  reviewForm: {
-    padding: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5
-  },
-  input: {
-    height: 60,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 8,
-    marginBottom: 10
-  },
-  reviewItem: {
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    paddingBottom: 10
-  }
-});
