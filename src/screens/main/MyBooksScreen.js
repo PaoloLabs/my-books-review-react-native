@@ -1,22 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-} from 'react-native';
-import {
-  getDoc,
-  doc,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-  setDoc
-} from 'firebase/firestore';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Card, Text, Avatar } from 'react-native-paper';
+import { getDoc, doc, collection, query, where, onSnapshot, orderBy, setDoc } from 'firebase/firestore';
 import { firestore, auth } from '../../config/firebase';
 import { fetchBookDetails } from '../../services/api';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,42 +10,32 @@ export default function MyBooksScreen() {
   const [myBooks, setMyBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Función para cargar los libros leídos del usuario
   const loadMyBooks = async () => {
     try {
       setLoading(true);
-
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        console.log('No hay usuario autenticado');
         setLoading(false);
         return;
       }
-
-      // Leer readBooks del documento del usuario
+      
       const userDocRef = doc(firestore, 'users', currentUser.uid);
       const userSnapshot = await getDoc(userDocRef);
-
       if (!userSnapshot.exists()) {
-        // Si el doc del usuario no existe, creamos uno vacío
         await setDoc(userDocRef, { readBooks: [] });
         setMyBooks([]);
         setLoading(false);
         return;
       }
-
+      
       const userData = userSnapshot.data();
       const readBooks = userData.readBooks || [];
-
       if (readBooks.length === 0) {
-        // El usuario no tiene libros marcados como leídos
         setMyBooks([]);
         setLoading(false);
         return;
       }
-
-      // Consultar las reseñas del usuario para esos libros
-      // where('bookId','in', readBooks) y where('userId','==', currentUser.uid)
+      
       const reviewsRef = collection(firestore, 'reviews');
       const q = query(
         reviewsRef,
@@ -69,33 +44,21 @@ export default function MyBooksScreen() {
         orderBy('createdAt', 'desc')
       );
 
-      // Usamos onSnapshot para actualizaciones en tiempo real
       onSnapshot(q, async (snapshot) => {
-        const userReviews = []; // { bookId, text, rating, ... }
-        snapshot.forEach((docSnap) => {
-          userReviews.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        // Para cada libro en readBooks, obtenemos detalles de la API
+        const userReviews = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         const booksData = [];
         for (let bookId of readBooks) {
           const bookDetails = await fetchBookDetails(bookId);
-
-          // Filtramos reseñas del usuario para este bookId
-          const filteredReviews = userReviews.filter(
-            (rev) => rev.bookId === bookId
-          );
-
+          const filteredReviews = userReviews.filter((rev) => rev.bookId === bookId);
           booksData.push({
             bookId,
             title: bookDetails?.title || 'Sin título',
             authors: bookDetails?.authors || [],
             imageUrl: bookDetails?.imageLinks?.thumbnail || '',
             description: bookDetails?.description || '',
-            reviews: filteredReviews, // Reseñas del usuario
+            reviews: filteredReviews,
           });
         }
-
         setMyBooks(booksData);
         setLoading(false);
       });
@@ -105,60 +68,39 @@ export default function MyBooksScreen() {
     }
   };
 
-  // Cada vez que la pantalla recupere el foco, se recarga la lista
   useFocusEffect(
     useCallback(() => {
       loadMyBooks();
     }, [])
   );
 
-  const renderBookItem = ({ item }) => {
-    return (
-      <View style={styles.bookContainer}>
-        {/* Imagen del libro */}
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.bookImage}
-            resizeMode="cover"
-          />
+  const renderBookItem = ({ item }) => (
+    <Card style={styles.bookCard}>
+      <Card.Cover source={{ uri: item.imageUrl }} style={styles.bookImage} />
+      <Card.Title title={item.title} subtitle={item.authors.join(', ') || 'Autor desconocido'} />
+      <Card.Content>
+        {item.reviews.length > 0 ? (
+          <>
+            <Text style={styles.subtitle}>Mis Reseñas:</Text>
+            {item.reviews.map((rev) => (
+              <View key={rev.id} style={styles.reviewItem}>
+                <Avatar.Icon size={24} icon="star" color="#FFD700" />
+                <Text style={styles.reviewText}>{rev.text}</Text>
+                <Text style={styles.reviewRating}>⭐ {rev.rating} / 5</Text>
+              </View>
+            ))}
+          </>
         ) : (
-          <View style={[styles.bookImage, styles.bookPlaceholder]}>
-            <Text style={{ color: '#666' }}>Sin imagen</Text>
-          </View>
+          <Text style={styles.noReviews}>Aún no hay reseñas para este libro</Text>
         )}
-
-        <View style={styles.bookInfo}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.authors}>{item.authors.join(', ')}</Text>
-
-          {/* Mostrar reseñas del usuario */}
-          {item.reviews.length > 0 ? (
-            <View style={{ marginTop: 8 }}>
-              <Text style={styles.subtitle}>Mis Reseñas:</Text>
-              {item.reviews.map((rev) => (
-                <View key={rev.id} style={styles.reviewItem}>
-                  <Text style={{ fontWeight: 'bold' }}>
-                    Calificación: {rev.rating} / 5
-                  </Text>
-                  <Text>{rev.text}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={{ marginTop: 8, fontStyle: 'italic' }}>
-              Aún no hay reseñas para este libro
-            </Text>
-          )}
-        </View>
-      </View>
-    );
-  };
+      </Card.Content>
+    </Card>
+  );
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#000" />
+        <ActivityIndicator size="large" color="#6200ea" />
         <Text>Cargando tus libros leídos...</Text>
       </View>
     );
@@ -173,70 +115,20 @@ export default function MyBooksScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 10 }}>
-      <FlatList
-        data={myBooks}
-        keyExtractor={(item) => item.bookId}
-        renderItem={renderBookItem}
-      />
+    <View style={styles.container}>
+      <FlatList data={myBooks} keyExtractor={(item) => item.bookId} renderItem={renderBookItem} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bookContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f9f9f9',
-    marginBottom: 12,
-    padding: 8,
-    borderRadius: 6,
-  },
-  bookInfo: {
-    flex: 1,
-  },
-  bookCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-    alignItems: 'center',
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  bookImage: {
-    width: 80,
-    height: 120,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  bookPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  authors: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    color: '#666',
-  },
-  subtitle: {
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  reviewItem: {
-    marginBottom: 8,
-    paddingVertical: 4,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#ccc',
-  },
+  container: { flex: 1, padding: 15, backgroundColor: '#f9f9f9' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  bookCard: { marginBottom: 10, borderRadius: 10, elevation: 3 },
+  bookImage: { height: 180, borderRadius: 10 },
+  subtitle: { fontWeight: '600', marginBottom: 4 },
+  reviewItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 5 },
+  reviewText: { flex: 1, marginLeft: 8 },
+  reviewRating: { fontWeight: 'bold', color: '#FFA500' },
+  noReviews: { textAlign: 'center', color: '#777', fontStyle: 'italic' },
 });

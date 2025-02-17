@@ -6,6 +6,8 @@ import TabNavigator from './src/navigation/TabNavigator';
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { auth } from "./src/config/firebase";
 import { LoadingOverlay } from './src/components/LoadingOverlay'; // Importar el componente de carga
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PaperProvider } from 'react-native-paper';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,15 +23,25 @@ export default function App() {
 
   // Mostrar loading mientras Firebase verifica la sesión
   if (isAuthenticated === null) {
-    return <LoadingOverlay visible={true} />;
+    return (
+      <SafeAreaProvider>
+        <PaperProvider>
+          <LoadingOverlay visible={true} />
+        </PaperProvider>
+      </SafeAreaProvider>
+    );
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName={isAuthenticated ? 'Main' : 'Auth'} screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Main" component={TabNavigator} />
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <PaperProvider>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName={isAuthenticated ? 'Main' : 'Auth'} screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Main" component={TabNavigator} />
+            <Stack.Screen name="Auth" component={AuthNavigator} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </PaperProvider>
+    </SafeAreaProvider>
   );
 }

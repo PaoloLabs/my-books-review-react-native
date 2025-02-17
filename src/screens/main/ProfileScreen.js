@@ -6,7 +6,6 @@ import {
   ScrollView,
   Dimensions,
   Alert,
-  Image,
   TouchableOpacity
 } from 'react-native';
 import { getAuth, signOut } from 'firebase/auth';
@@ -116,7 +115,7 @@ export default function ProfileScreen({ navigation }) {
 
       uploadTask.on(
         'state_changed',
-        () => { },
+        () => {},
         (error) => {
           console.error('Error subiendo imagen:', error);
           setUploading(false);
@@ -153,75 +152,176 @@ export default function ProfileScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      // Navega a la pantalla de autenticación (ajusta según tu estructura de navegación)
       navigation.replace('Auth');
     } catch (error) {
       Alert.alert('Error al cerrar sesión', error.message);
     }
   };
 
+  // Datos para el PieChart
   const pieData = [
-    { name: 'Leídos', population: readCount, color: '#1e90ff', legendFontColor: '#7F7F7F', legendFontSize: 15 },
-    { name: 'Reseñas', population: reviewsCount, color: '#ff7f50', legendFontColor: '#7F7F7F', legendFontSize: 15 }
+    {
+      name: 'Leídos',
+      population: readCount,
+      color: '#1e90ff',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 15
+    },
+    {
+      name: 'Reseñas',
+      population: reviewsCount,
+      color: '#ff7f50',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 15
+    }
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ alignItems: 'center' }}>
-      {uploading && <ActivityIndicator animating size="large" color="#0000ff" />}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Indicador de carga si se está subiendo imagen o guardando */}
+        {uploading && <ActivityIndicator size="large" color="#0000ff" />}
 
-      {/* Foto de perfil */}
-      <TouchableOpacity onPress={pickImage} style={styles.profilePicContainer}>
-        {photoURL ? (
-          <Avatar.Image source={{ uri: photoURL }} size={120} />
-        ) : (
-          <Avatar.Icon size={120} icon="account" />
-        )}
-      </TouchableOpacity>
+        {/* Sección de foto de perfil y nombre */}
+        <View style={styles.headerSection}>
+          <TouchableOpacity onPress={pickImage} style={styles.profilePicContainer}>
+            {photoURL ? (
+              <Avatar.Image source={{ uri: photoURL }} size={120} />
+            ) : (
+              <Avatar.Icon size={120} icon="account" />
+            )}
+          </TouchableOpacity>
+          <Text style={styles.displayName}>
+            {name || lastName ? `${name} ${lastName}` : 'Tu nombre'}
+          </Text>
+        </View>
 
-      {/* Datos del usuario */}
-      <Card style={styles.card}>
-        <Card.Title title="Información de Perfil" />
-        <Card.Content>
-          <TextInput label="Nombre" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-          <TextInput label="Apellido" value={lastName} onChangeText={setLastName} mode="outlined" style={styles.input} />
-          <TextInput label="Email" value={email} mode="outlined" style={[styles.input, { backgroundColor: '#eee' }]} disabled />
-        </Card.Content>
-      </Card>
+        {/* Tarjeta con datos de perfil */}
+        <Card style={styles.profileCard}>
+          <Card.Title title="Información de Perfil" />
+          <Card.Content>
+            <TextInput
+              label="Nombre"
+              value={name}
+              onChangeText={setName}
+              mode="outlined"
+              style={styles.input}
+            />
+            <TextInput
+              label="Apellido"
+              value={lastName}
+              onChangeText={setLastName}
+              mode="outlined"
+              style={styles.input}
+            />
+            <TextInput
+              label="Email"
+              value={email}
+              mode="outlined"
+              style={[styles.input, { backgroundColor: '#eee' }]}
+              disabled
+            />
+          </Card.Content>
+        </Card>
 
-      {/* Gráfico de estadísticas */}
-      <View style={{ marginTop: 20 }}>
-        <Text style={styles.label}>Estadísticas</Text>
-        {pieData.length > 0 ? (
-          <PieChart
-            data={pieData}
-            width={screenWidth * 0.8}
-            height={220}
-            chartConfig={{
-              backgroundColor: '#fff',
-              backgroundGradientFrom: '#f9f9f9',
-              backgroundGradientTo: '#fff',
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-            }}
-            accessor="population"
-            backgroundColor="transparent"
-            paddingLeft="15"
-            absolute
-          />
-        ) : (
-          <Text style={{ textAlign: 'center', marginTop: 20, color: '#666' }}>No hay datos para mostrar.</Text>
-        )}      </View>
+        {/* Sección de estadísticas */}
+        <View style={styles.statsSection}>
+          <Text style={styles.label}>Estadísticas</Text>
+          {pieData.length > 0 ? (
+            <PieChart
+              data={pieData}
+              width={screenWidth * 0.8}
+              height={220}
+              chartConfig={{
+                backgroundColor: '#fff',
+                backgroundGradientFrom: '#f9f9f9',
+                backgroundGradientTo: '#fff',
+                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`
+              }}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="15"
+              absolute
+            />
+          ) : (
+            <Text style={styles.emptyData}>
+              No hay datos para mostrar.
+            </Text>
+          )}
+        </View>
 
-      {/* Botones */}
-      <Button mode="contained" onPress={saveProfile} style={styles.button}>Guardar Perfil</Button>
-      <Button mode="contained" onPress={handleLogout} style={[styles.button, { backgroundColor: '#d9534f' }]}>Cerrar Sesión</Button>
-    </ScrollView>
+        {/* Botones */}
+        <Button
+          mode="contained"
+          onPress={saveProfile}
+          style={styles.saveButton}
+        >
+          Guardar Perfil
+        </Button>
+        <Button
+          mode="contained"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+        >
+          Cerrar Sesión
+        </Button>
+      </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f5f5' },
-  profilePicContainer: { marginBottom: 20 },
-  card: { width: '90%', marginBottom: 20 },
-  input: { marginBottom: 10 },
-  button: { marginVertical: 10 },
-  label: { fontWeight: 'bold', fontSize: 18, textAlign: 'center' }
+  scrollView: {
+    flex: 1
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingVertical: 20
+  },
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  profilePicContainer: {
+    marginBottom: 10
+  },
+  displayName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff'
+  },
+  profileCard: {
+    width: '90%',
+    marginBottom: 20
+  },
+  input: {
+    marginBottom: 10
+  },
+  statsSection: {
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  label: {
+    fontWeight: 'bold',
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#fff'
+  },
+  emptyData: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#666'
+  },
+  saveButton: {
+    width: '90%',
+    marginTop: 10,
+    backgroundColor: '#1e90ff'
+  },
+  logoutButton: {
+    width: '90%',
+    marginTop: 10,
+    backgroundColor: '#d9534f'
+  }
 });

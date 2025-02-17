@@ -1,55 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Button,
-  Image,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert
-} from 'react-native';
-
-import {
-  collection,
-  addDoc,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-  serverTimestamp,
-  deleteDoc,
-  doc,
-  updateDoc,
-  setDoc,
-  getDoc,
-  arrayUnion,
-  arrayRemove
-} from 'firebase/firestore';
-
+import { View, ScrollView, StyleSheet } from 'react-native';
+import { Card, Text, Button, TextInput, Avatar, ActivityIndicator, Snackbar, IconButton, Modal, Portal } from 'react-native-paper';
+import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, deleteDoc, doc, updateDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { firestore, auth } from '../../../config/firebase';
-
 import { fetchBookDetails } from '../../../services/api';
-import { LoadingOverlay } from '../../../components/LoadingOverlay';
-import { commonStyles } from '../../../styles/CommonStyles';
 
 export default function BookDetailScreen({ route, navigation }) {
   const { bookId } = route.params;
-
-  // Estados para el detalle del libro
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Estados para reseñas
-  const [reviews, setReviews] = useState([]);       // Lista de reseñas en Firestore
-  const [reviewText, setReviewText] = useState(''); // Texto de la nueva reseña
-  const [rating, setRating] = useState(0);          // Calificación por estrellas
-
-  // Estado para saber si el libro ya está marcado como leído
+  const [reviews, setReviews] = useState([]);
+  const [userReview, setUserReview] = useState(null);
+  const [reviewText, setReviewText] = useState('');
+  const [rating, setRating] = useState(0);
   const [isRead, setIsRead] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  // Cargar datos del libro desde la API
+  // Estados para editar reseña
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editReviewText, setEditReviewText] = useState('');
+  const [editReviewRating, setEditReviewRating] = useState(0);
+  const [editReviewId, setEditReviewId] = useState(null);
+
+  const currentUser = auth.currentUser;
+
+  const StarRating = ({ currentRating, onSelectRating }) => (
+    <View style={styles.starRatingContainer}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <IconButton
+          key={index}
+          icon={index + 1 <= currentRating ? 'star' : 'star-outline'}
+          iconColor="#FFD700"
+          size={30}
+          onPress={() => onSelectRating(index + 1)}
+        />
+      ))}
+    </View>
+  );
+
   useEffect(() => {
     const getBookDetails = async () => {
       const bookData = await fetchBookDetails(bookId);
@@ -59,81 +48,76 @@ export default function BookDetailScreen({ route, navigation }) {
     getBookDetails();
   }, [bookId]);
 
-  // Suscribirse en tiempo real a las reseñas de este libro
   useEffect(() => {
     const reviewsRef = collection(firestore, 'reviews');
-    const q = query(
-      reviewsRef,
-      where('bookId', '==', bookId),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(reviewsRef, where('bookId', '==', bookId), orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedReviews = [];
-      snapshot.forEach((docSnap) => {
-        fetchedReviews.push({ id: docSnap.id, ...docSnap.data() });
-      });
+      const fetchedReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReviews(fetchedReviews);
+      const userExistingReview = fetchedReviews.find(review => review.userId === currentUser?.uid);
+      setUserReview(userExistingReview || null);
     });
 
     return () => unsubscribe();
   }, [bookId]);
 
-  // Al montar o cambiar el bookId, verificar si el libro ya está en el array readBooks del usuario
   useEffect(() => {
     const checkIfRead = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
-
-        const userDocRef = doc(firestore, 'users', currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (!userDocSnap.exists()) {
-          // Si no existe, lo creamos vacío
-          await setDoc(userDocRef, { readBooks: [] });
-          setIsRead(false);
-        } else {
-          const data = userDocSnap.data();
-          if (data.readBooks?.includes(bookId)) {
-            setIsRead(true);
-          } else {
-            setIsRead(false);
-          }
-        }
-      } catch (error) {
-        console.error('Error revisando si el libro está marcado como leído:', error);
-      }
+      if (!currentUser) return;
+      const userDocRef = doc(firestore, 'users', currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      setIsRead(userDocSnap.exists() && userDocSnap.data().readBooks?.includes(bookId));
     };
-
     checkIfRead();
-  }, [auth.currentUser, bookId]);
+  }, [bookId]);
 
-  // Envía una nueva reseña a Firestore
-  const submitReview = async () => {
-    if (!reviewText.trim()) {
-      Alert.alert('Error', 'La reseña no puede estar vacía.');
-      return;
-    }
-    if (rating < 1) {
-      Alert.alert('Error', 'La calificación debe ser al menos de 1 estrella.');
-      return;
-    }
-    // Verificamos si hay un usuario autenticado
-    const currentUser = auth.currentUser;
+  const toggleReadStatus = async () => {
     if (!currentUser) {
-      Alert.alert('Error', 'No hay usuario autenticado.');
+      setSnackbarMessage('Debes iniciar sesión para marcar como leído.');
+      setSnackbarVisible(true);
+      return;
+    }
+
+    const userDocRef = doc(firestore, 'users', currentUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      await setDoc(userDocRef, { readBooks: [] });
+    }
+
+    if (isRead) {
+      await updateDoc(userDocRef, { readBooks: arrayRemove(bookId) });
+      setIsRead(false);
+    } else {
+      await updateDoc(userDocRef, { readBooks: arrayUnion(bookId) });
+      setIsRead(true);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!reviewText.trim() || rating < 1) {
+      setSnackbarMessage('Debes escribir una reseña y asignar al menos 1 estrella.');
+      setSnackbarVisible(true);
+      return;
+    }
+    if (!currentUser) {
+      setSnackbarMessage('Debes iniciar sesión para escribir una reseña.');
+      setSnackbarVisible(true);
       return;
     }
     try {
+      const userName = currentUser.email || 'Usuario Anónimo';
+      console.log('Usuario:', currentUser);
       await addDoc(collection(firestore, 'reviews'), {
         bookId,
         text: reviewText,
         rating,
         createdAt: serverTimestamp(),
-        userId: currentUser.uid
+        userId: currentUser.uid,
+        userName,
       });
-      // Limpiar campos
+
       setReviewText('');
       setRating(0);
     } catch (error) {
@@ -141,160 +125,124 @@ export default function BookDetailScreen({ route, navigation }) {
     }
   };
 
-  // Elimina una reseña de Firestore
   const deleteReview = async (reviewId) => {
     try {
       await deleteDoc(doc(firestore, 'reviews', reviewId));
+      setSnackbarMessage('Reseña eliminada correctamente.');
+      setSnackbarVisible(true);
     } catch (error) {
       console.error('Error al eliminar la reseña:', error);
     }
   };
 
-  // Actualiza una reseña (ejemplo simple)
-  const editReview = async (reviewId) => {
+  const updateReview = async () => {
+    if (!editReviewText.trim() || editReviewRating < 1) {
+      setSnackbarMessage('Debes escribir una reseña válida y asignar al menos 1 estrella.');
+      setSnackbarVisible(true);
+      return;
+    }
     try {
-      const docRef = doc(firestore, 'reviews', reviewId);
-      await updateDoc(docRef, { text: 'Reseña Editada', rating: 5 });
+      const docRef = doc(firestore, 'reviews', editReviewId);
+      await updateDoc(docRef, { text: editReviewText, rating: editReviewRating });
+      setEditModalVisible(false);
+      setSnackbarMessage('Reseña actualizada con éxito.');
+      setSnackbarVisible(true);
     } catch (error) {
-      console.error('Error al editar la reseña:', error);
+      console.error('Error al actualizar la reseña:', error);
     }
   };
 
-  // Función para marcar o desmarcar el libro como leído
-  const toggleReadStatus = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        Alert.alert('Error', 'No hay usuario autenticado.');
-        return;
-      }
-
-      const userDocRef = doc(firestore, 'users', currentUser.uid);
-
-      // Primero asegurarnos de que el doc existe
-      const userDocSnap = await getDoc(userDocRef);
-      if (!userDocSnap.exists()) {
-        // Si no existe, crearlo con array vacío
-        await setDoc(userDocRef, { readBooks: [] });
-      }
-
-      // Si ya está leído, lo quitamos; si no, lo agregamos
-      if (isRead) {
-        await updateDoc(userDocRef, {
-          readBooks: arrayRemove(bookId)
-        });
-        setIsRead(false);
-        Alert.alert('¡Removido!', 'Se quitó el libro de tus leídos');
-      } else {
-        await updateDoc(userDocRef, {
-          readBooks: arrayUnion(bookId)
-        });
-        setIsRead(true);
-        Alert.alert('¡Libro guardado!', 'Se marcó este libro como leído en tu cuenta.');
-      }
-
-    } catch (error) {
-      console.error('Error al cambiar el estado de leído:', error);
-    }
+  const openEditModal = (review) => {
+    setEditReviewId(review.id);
+    setEditReviewText(review.text);
+    setEditReviewRating(review.rating);
+    setEditModalVisible(true);
   };
-
-  // Componente: rating con estrellas ★
-  const StarRating = ({ currentRating, onSelectRating }) => {
-    const totalStars = 5;
-    return (
-      <View style={{ flexDirection: 'row', marginVertical: 5 }}>
-        {Array.from({ length: totalStars }, (_, index) => {
-          const starValue = index + 1;
-          const isFilled = currentRating >= starValue;
-          return (
-            <TouchableOpacity
-              key={index}
-              onPress={() => onSelectRating(starValue)}
-              style={{ marginRight: 5 }}
-            >
-              <Text style={{ fontSize: 24, color: isFilled ? '#FFD700' : '#ccc' }}>
-                ★
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return <LoadingOverlay visible={loading} />;
-  }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1, padding: 15 }}>
-        {/* Imagen del libro */}
+    <ScrollView style={styles.container}>
+      <Card>
         {book?.imageLinks?.thumbnail && (
-          <Image
-            source={{ uri: book.imageLinks.thumbnail }}
-            style={{ width: 150, height: 220, alignSelf: 'center', marginBottom: 15 }}
-          />
+          <Card.Cover source={{ uri: book.imageLinks.thumbnail }} style={styles.bookImage} />
         )}
+        <Card.Title title={book?.title} subtitle={book?.authors?.join(', ') || 'Autor desconocido'} />
+        <Card.Content>
+          <Text variant="bodyMedium">{book?.description || 'No hay descripción disponible.'}</Text>
+        </Card.Content>
+      </Card>
 
-        {/* Título, autor, descripción */}
-        <Text style={commonStyles.detailBookTitle}>{book?.title}</Text>
-        <Text style={commonStyles.detailBookAuthor}>
-          {book?.authors?.join(', ') || 'Autor desconocido'}
-        </Text>
-        <Text style={commonStyles.detailBookDescription}>
-          {book?.description || 'No hay descripción disponible.'}
-        </Text>
+      {!userReview && (
+        <Card style={styles.sectionCard}>
+          <Card.Title title="Añadir Reseña" />
+          <Card.Content>
+            <Text style={{ fontWeight: 'bold' }}>Calificación:</Text>
+            <StarRating currentRating={rating} onSelectRating={setRating} />
+            <TextInput label="Escribe tu reseña..." mode="outlined" multiline value={reviewText} onChangeText={setReviewText} style={styles.input} />
+            <Button mode="contained" onPress={submitReview} style={styles.button}>Subir Reseña</Button>
+          </Card.Content>
+        </Card>
+      )}
 
-        {/* Formulario para crear nueva reseña */}
-        <View style={commonStyles.detailReviewForm}>
-          <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Añadir Reseña:</Text>
-          <StarRating currentRating={rating} onSelectRating={setRating} />
-          <TextInput
-            style={commonStyles.detailInput}
-            placeholder="Escribe tu reseña..."
-            value={reviewText}
-            onChangeText={setReviewText}
-            multiline
-          />
-          <Button
-            title="Enviar Reseña"
-            onPress={submitReview}
-          />
-        </View>
-
-        {/* Listado de reseñas desde Firestore */}
-        <View style={{ marginTop: 20 }}>
-          <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>Reseñas:</Text>
-          {reviews.map((item) => (
-            <View key={item.id} style={commonStyles.detailReviewItem}>
-              <Text style={{ fontWeight: 'bold' }}>
-                Calificación: {item.rating} / 5
-              </Text>
-              <Text>{item.text}</Text>
-              <View style={{ flexDirection: 'row', marginTop: 10 }}>
-                <Button
-                  title="Editar"
-                  onPress={() => editReview(item.id)}
-                />
-                <View style={{ width: 10 }} />
-                <Button
-                  title="Borrar"
-                  color="red"
-                  onPress={() => deleteReview(item.id)}
-                />
+      <Card style={styles.sectionCard}>
+        <Card.Title title="Reseñas" />
+        <Card.Content>
+          {reviews.length === 0 ? (
+            <Text style={styles.noReviews}>No hay reseñas aún.</Text>
+          ) : (
+            reviews.map((item) => (
+              <View key={item.id} style={styles.reviewItem}>
+                <Avatar.Icon size={36} icon="account" style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.userName}>{item.userName}</Text>
+                  <Text style={styles.reviewText}>{item.text}</Text>
+                  <Text style={styles.reviewRating}>⭐ {item.rating} / 5</Text>
+                </View>
+                {currentUser?.uid === item.userId && (
+                  <View style={styles.reviewActions}>
+                    <IconButton icon="pencil" size={20} onPress={() => openEditModal(item)} />
+                    <IconButton icon="delete" size={20} onPress={() => deleteReview(item.id)} />
+                  </View>
+                )}
               </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+            ))
+          )}
+        </Card.Content>
+      </Card>
 
-      {/* Botón para marcar/desmarcar como leído */}
-      <TouchableOpacity style={[commonStyles.detailButton, isRead ? commonStyles.detailReadButtonActive : commonStyles.detailReadButton]}
-        onPress={toggleReadStatus}>
-        <Text style={commonStyles.detailButtonText}>{isRead ? "Leído" : "Marcar como leído"}</Text>
-      </TouchableOpacity>
-    </View>
+      <Portal>
+        <Modal visible={editModalVisible} onDismiss={() => setEditModalVisible(false)} contentContainerStyle={styles.modalContainer}>
+          <Card style={styles.modalCard}>
+            <Card.Title title="Editar Reseña" />
+            <Card.Content>
+              <StarRating currentRating={editReviewRating} onSelectRating={setEditReviewRating} />
+              <TextInput label="Editar reseña..." mode="outlined" multiline value={editReviewText} onChangeText={setEditReviewText} style={styles.input} />
+              <Button mode="contained" onPress={updateReview} style={styles.button}>Guardar Cambios</Button>
+            </Card.Content>
+          </Card>
+        </Modal>
+      </Portal>
+
+      <Button mode="contained" onPress={toggleReadStatus} style={styles.button}>
+        {isRead ? 'Marcar como No Leído' : 'Marcar como Leído'}
+      </Button>
+
+      <Snackbar visible={snackbarVisible} onDismiss={() => setSnackbarVisible(false)}>
+        {snackbarMessage}
+      </Snackbar>
+    </ScrollView>
   );
 }
 
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 10, backgroundColor: '#f5f5f5' },
+  bookImage: { height: 250 },
+  sectionCard: { marginVertical: 10 },
+  input: { marginBottom: 10 },
+  button: { marginTop: 10 },
+  reviewItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  userName: { fontWeight: 'bold' },
+  reviewText: { fontSize: 16 },
+  reviewRating: { fontWeight: 'bold', color: '#FFA500' },
+  noReviews: { textAlign: 'center', color: '#777' },
+  starRatingContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 10 },
+});
