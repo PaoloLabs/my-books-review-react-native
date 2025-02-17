@@ -37,6 +37,7 @@ export default function ProfileScreen({ navigation }) {
   const currentUser = auth.currentUser;
 
   const [name, setName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [photoURL, setPhotoURL] = useState('');
   const [readCount, setReadCount] = useState(0);
@@ -52,6 +53,7 @@ export default function ProfileScreen({ navigation }) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setName(data.name || '');
+        setLastName(data.lastName || '');
         setEmail(data.email || currentUser.email);
         setPhotoURL(data.photoURL || '');
       }
@@ -154,6 +156,7 @@ export default function ProfileScreen({ navigation }) {
         docRef,
         {
           name,
+          lastName,
           email,
           photoURL
         },
@@ -211,11 +214,12 @@ export default function ProfileScreen({ navigation }) {
         )}
       </TouchableOpacity>
 
-      {/* Nombre */}
       <Text style={styles.label}>Nombre:</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} />
+      
+      <Text style={styles.label}>Apellido:</Text>
+      <TextInput style={styles.input} value={lastName} onChangeText={setLastName} />
 
-      {/* Email (no editable) */}
       <Text style={styles.label}>Email:</Text>
       <TextInput
         style={[styles.input, { backgroundColor: '#f0f0f0' }]}

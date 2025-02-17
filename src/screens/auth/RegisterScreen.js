@@ -112,6 +112,7 @@ export default function RegisterScreen({ navigation }) {
 
       <Input
         placeholder="Email"
+        leftIcon={{ type: 'font-awesome', name: 'envelope' }}
         value={formData.email}
         onChangeText={(value) => handleInputChange('email', value)}
         autoCapitalize="none"
@@ -121,6 +122,7 @@ export default function RegisterScreen({ navigation }) {
 
       <Input
         placeholder="Contraseña"
+        leftIcon={{ type: 'font-awesome', name: 'lock' }}
         value={formData.password}
         onChangeText={(value) => handleInputChange('password', value)}
         secureTextEntry
@@ -130,6 +132,7 @@ export default function RegisterScreen({ navigation }) {
 
       <Input
         placeholder="Confirmar Contraseña"
+        leftIcon={{ type: 'font-awesome', name: 'lock' }}
         value={formData.confirmPassword}
         onChangeText={(value) => handleInputChange('confirmPassword', value)}
         secureTextEntry

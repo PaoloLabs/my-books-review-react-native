@@ -25,7 +25,7 @@ import {
 import { firestore, auth } from '../../../config/firebase'; // Ajusta la ruta a tu config
 
 // Tu API para cargar libros (paginación)
-import { fetchBooksPaginated } from '../../../services/api';
+import { fetchBooks, fetchBooksPaginated } from '../../../services/api';
 
 export default function LibraryScreen({ navigation }) {
   const [books, setBooks] = useState([]);
@@ -40,7 +40,7 @@ export default function LibraryScreen({ navigation }) {
   const loadMoreBooks = async () => {
     setLoading(true);
     try {
-      const newBooks = await fetchBooksPaginated();
+      const newBooks = await fetchBooks();
       setBooks((prevBooks) => {
         const updatedBooks = [...prevBooks, ...newBooks];
         setFilteredBooks(updatedBooks);
