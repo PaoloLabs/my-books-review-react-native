@@ -76,7 +76,7 @@ export default function MyBooksScreen() {
 
   const renderBookItem = ({ item }) => (
     <Card style={styles.bookCard}>
-      <Card.Cover source={{ uri: item.imageUrl }} style={styles.bookImage} />
+      <Card.Cover source={{ uri: item.imageUrl }} style={styles.bookImage} resizeMode="contain" />
       <Card.Title title={item.title} subtitle={item.authors.join(', ') || 'Autor desconocido'} />
       <Card.Content>
         {item.reviews.length > 0 ? (

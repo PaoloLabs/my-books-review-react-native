@@ -7,9 +7,9 @@ import { validateEmail, validatePassword } from '../../utils/Validation';
 
 export default function RegisterScreen({ navigation }) {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: ''
+    email: 'tito.test@acme.com',
+    password: 'Test2025!',
+    confirmPassword: 'Test2025!',
   });
 
   const [errors, setErrors] = useState({});

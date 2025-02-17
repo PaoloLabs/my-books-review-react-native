@@ -152,7 +152,6 @@ export default function ProfileScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Navega a la pantalla de autenticación (ajusta según tu estructura de navegación)
       navigation.replace('Auth');
     } catch (error) {
       Alert.alert('Error al cerrar sesión', error.message);
@@ -164,15 +163,15 @@ export default function ProfileScreen({ navigation }) {
     {
       name: 'Leídos',
       population: readCount,
-      color: '#1e90ff',
-      legendFontColor: '#7F7F7F',
+      color: 'rgba(96, 64, 151, 1)',
+      legendFontColor: '#000',
       legendFontSize: 15
     },
     {
       name: 'Reseñas',
       population: reviewsCount,
-      color: '#ff7f50',
-      legendFontColor: '#7F7F7F',
+      color: 'rgb(155, 150, 159)',
+      legendFontColor: '#000',
       legendFontSize: 15
     }
   ];
@@ -290,7 +289,7 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff'
+    color: '#000'
   },
   profileCard: {
     width: '90%',
@@ -307,7 +306,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 18,
     marginBottom: 10,
-    color: '#fff'
+    color: '#000'
   },
   emptyData: {
     textAlign: 'center',
@@ -317,7 +316,6 @@ const styles = StyleSheet.create({
   saveButton: {
     width: '90%',
     marginTop: 10,
-    backgroundColor: '#1e90ff'
   },
   logoutButton: {
     width: '90%',

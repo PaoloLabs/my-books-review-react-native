@@ -6,7 +6,7 @@ import { auth } from '../../config/firebase';
 import { validateEmail } from '../../utils/Validation';
 
 export default function LoginScreen({ navigation }) {
-    const [email, setEmail] = useState('pepe.test@acme.com');
+    const [email, setEmail] = useState('tito.test@acme.com');
     const [password, setPassword] = useState('Test2025!');
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);

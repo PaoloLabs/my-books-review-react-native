@@ -4,7 +4,7 @@ import { Searchbar, Card, Text, Button, ActivityIndicator } from 'react-native-p
 import { useFocusEffect } from '@react-navigation/native';
 import { getDoc, doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { firestore, auth } from '../../../config/firebase';
-import { fetchBooksPaginated } from '../../../services/api';
+import { fetchBooks } from '../../../services/api';
 
 export default function LibraryScreen({ navigation }) {
   const [books, setBooks] = useState([]);
@@ -13,19 +13,17 @@ export default function LibraryScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [readBooks, setReadBooks] = useState([]);
 
-  const loadMoreBooks = async () => {
+  const loadBooks = async () => {
     setLoading(true);
     try {
-      const newBooks = await fetchBooksPaginated();
-      setBooks((prevBooks) => {
-        const updatedBooks = [...prevBooks, ...newBooks];
-        setFilteredBooks(updatedBooks);
-        return updatedBooks;
-      });
+      const allBooks = await fetchBooks();
+      setBooks(allBooks);
+      setFilteredBooks(allBooks);
     } catch (error) {
       console.error('Error al cargar libros:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadUserReadBooks = async () => {
@@ -50,7 +48,7 @@ export default function LibraryScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadMoreBooks();
+      loadBooks();
       loadUserReadBooks();
     }, [])
   );
@@ -93,7 +91,10 @@ export default function LibraryScreen({ navigation }) {
 
     return (
       <Card style={styles.bookCard}>
-        <Card.Cover source={{ uri: item.imageLinks?.thumbnail || 'https://via.placeholder.com/150' }} />
+        <Card.Cover
+          source={{ uri: item.imageLinks?.thumbnail || 'https://via.placeholder.com/150' }}
+          resizeMode="contain"
+        />
         <Card.Content>
           <Text variant="titleMedium">{item.title}</Text>
           <Text variant="bodyMedium">{truncatedDescription}</Text>
@@ -131,8 +132,6 @@ export default function LibraryScreen({ navigation }) {
           data={filteredBooks}
           renderItem={renderBookItem}
           keyExtractor={(item) => item.id}
-          onEndReached={loadMoreBooks}
-          onEndReachedThreshold={0.5}
         />
       )}
     </View>
@@ -152,7 +151,11 @@ const styles = StyleSheet.create({
   bookCard: {
     marginBottom: 15,
     borderRadius: 10,
-    overflow: 'hidden',
+    elevation: 3, // en Android
+    shadowColor: '#000', // en iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   loader: {
     marginTop: 20,

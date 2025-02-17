@@ -108,7 +108,6 @@ export default function BookDetailScreen({ route, navigation }) {
     }
     try {
       const userName = currentUser.email || 'Usuario Anónimo';
-      console.log('Usuario:', currentUser);
       await addDoc(collection(firestore, 'reviews'), {
         bookId,
         text: reviewText,
@@ -222,9 +221,14 @@ export default function BookDetailScreen({ route, navigation }) {
         </Modal>
       </Portal>
 
-      <Button mode="contained" onPress={toggleReadStatus} style={styles.button}>
+      <Button
+        mode={isRead ? 'outlined' : 'contained'}
+        onPress={toggleReadStatus}
+        style={styles.button}>
         {isRead ? 'Marcar como No Leído' : 'Marcar como Leído'}
       </Button>
+
+
 
       <Snackbar visible={snackbarVisible} onDismiss={() => setSnackbarVisible(false)}>
         {snackbarMessage}
